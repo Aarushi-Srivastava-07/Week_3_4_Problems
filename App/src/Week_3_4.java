@@ -1,46 +1,55 @@
 import java.util.*;
 
-class Trade {
-    private String id;
-    private int volume;
+class Asset {
+    private String symbol;
+    private double returnRate;
+    private double volatility;
 
-    public Trade(String id, int volume) {
-        this.id = id;
-        this.volume = volume;
+    public Asset(String symbol, double returnRate, double volatility) {
+        this.symbol = symbol;
+        this.returnRate = returnRate;
+        this.volatility = volatility;
     }
 
-    public String getId() { return id; }
-    public int getVolume() { return volume; }
+    public String getSymbol() { return symbol; }
+    public double getReturnRate() { return returnRate; }
+    public double getVolatility() { return volatility; }
 
     @Override
     public String toString() {
-        return id + ":" + volume;
+        return symbol + ":" + String.format("%.0f", returnRate) + "%";
+    }
+
+    public String toDetailedString() {
+        return symbol + ":" + String.format("%.0f", returnRate) + "% (vol:" + volatility + ")";
     }
 }
 
-class TradeVolumeAnalyzer {
+class PortfolioSorter {
+    private static final int INSERTION_THRESHOLD = 10;
+    private static Random random = new Random();
 
-    public static Trade[] mergeSort(Trade[] trades) {
-        if (trades.length <= 1) {
-            return trades;
+    public static Asset[] mergeSortByReturnRate(Asset[] assets) {
+        if (assets.length <= 1) {
+            return assets;
         }
 
-        int mid = trades.length / 2;
-        Trade[] left = Arrays.copyOfRange(trades, 0, mid);
-        Trade[] right = Arrays.copyOfRange(trades, mid, trades.length);
+        int mid = assets.length / 2;
+        Asset[] left = Arrays.copyOfRange(assets, 0, mid);
+        Asset[] right = Arrays.copyOfRange(assets, mid, assets.length);
 
-        left = mergeSort(left);
-        right = mergeSort(right);
+        left = mergeSortByReturnRate(left);
+        right = mergeSortByReturnRate(right);
 
         return merge(left, right);
     }
 
-    private static Trade[] merge(Trade[] left, Trade[] right) {
-        Trade[] result = new Trade[left.length + right.length];
+    private static Asset[] merge(Asset[] left, Asset[] right) {
+        Asset[] result = new Asset[left.length + right.length];
         int i = 0, j = 0, k = 0;
 
         while (i < left.length && j < right.length) {
-            if (left[i].getVolume() <= right[j].getVolume()) {
+            if (left[i].getReturnRate() <= right[j].getReturnRate()) {
                 result[k++] = left[i++];
             } else {
                 result[k++] = right[j++];
@@ -58,71 +67,93 @@ class TradeVolumeAnalyzer {
         return result;
     }
 
-    public static void quickSortByVolumeDesc(Trade[] trades, int low, int high) {
+    public static void quickSortByReturnDescAndVolatilityAsc(Asset[] assets, int low, int high) {
+        if (high - low + 1 <= INSERTION_THRESHOLD) {
+            insertionSort(assets, low, high);
+            return;
+        }
+
         if (low < high) {
-            int pivotIndex = partition(trades, low, high);
-            quickSortByVolumeDesc(trades, low, pivotIndex - 1);
-            quickSortByVolumeDesc(trades, pivotIndex + 1, high);
+            int pivotIndex = partition(assets, low, high);
+            quickSortByReturnDescAndVolatilityAsc(assets, low, pivotIndex - 1);
+            quickSortByReturnDescAndVolatilityAsc(assets, pivotIndex + 1, high);
         }
     }
 
-    private static int partition(Trade[] trades, int low, int high) {
-        int pivotIndex = medianOfThree(trades, low, high);
-        Trade pivot = trades[pivotIndex];
+    private static int partition(Asset[] assets, int low, int high) {
+        int pivotIndex = medianOfThree(assets, low, high);
+        Asset pivot = assets[pivotIndex];
 
-        swap(trades, pivotIndex, high);
+        swap(assets, pivotIndex, high);
 
         int i = low;
 
         for (int j = low; j < high; j++) {
-            if (trades[j].getVolume() >= pivot.getVolume()) {
-                swap(trades, i, j);
+            if (compareAssets(assets[j], pivot) < 0) {
+                swap(assets, i, j);
                 i++;
             }
         }
 
-        swap(trades, i, high);
+        swap(assets, i, high);
         return i;
     }
 
-    private static int medianOfThree(Trade[] trades, int low, int high) {
+    private static int medianOfThree(Asset[] assets, int low, int high) {
         int mid = low + (high - low) / 2;
 
-        if (trades[low].getVolume() > trades[mid].getVolume()) {
-            swap(trades, low, mid);
+        if (compareAssets(assets[low], assets[mid]) > 0) {
+            swap(assets, low, mid);
         }
-        if (trades[low].getVolume() > trades[high].getVolume()) {
-            swap(trades, low, high);
+        if (compareAssets(assets[low], assets[high]) > 0) {
+            swap(assets, low, high);
         }
-        if (trades[mid].getVolume() > trades[high].getVolume()) {
-            swap(trades, mid, high);
+        if (compareAssets(assets[mid], assets[high]) > 0) {
+            swap(assets, mid, high);
         }
 
         return mid;
     }
 
-    private static void swap(Trade[] trades, int i, int j) {
-        Trade temp = trades[i];
-        trades[i] = trades[j];
-        trades[j] = temp;
-    }
-
-    public static Trade[] mergeTwoSortedLists(Trade[] list1, Trade[] list2) {
-        return merge(list1, list2);
-    }
-
-    public static int computeTotalVolume(Trade[] trades) {
-        int total = 0;
-        for (Trade t : trades) {
-            total += t.getVolume();
+    private static int compareAssets(Asset a1, Asset a2) {
+        if (a1.getReturnRate() != a2.getReturnRate()) {
+            return Double.compare(a2.getReturnRate(), a1.getReturnRate());
         }
-        return total;
+        return Double.compare(a1.getVolatility(), a2.getVolatility());
     }
 
-    public static void displayTrades(Trade[] trades, String title) {
+    private static void insertionSort(Asset[] assets, int low, int high) {
+        for (int i = low + 1; i <= high; i++) {
+            Asset key = assets[i];
+            int j = i - 1;
+
+            while (j >= low && compareAssets(assets[j], key) > 0) {
+                assets[j + 1] = assets[j];
+                j--;
+            }
+
+            assets[j + 1] = key;
+        }
+    }
+
+    private static void swap(Asset[] assets, int i, int j) {
+        Asset temp = assets[i];
+        assets[i] = assets[j];
+        assets[j] = temp;
+    }
+
+    public static void displayAssets(Asset[] assets, String title) {
         System.out.println(title + ":");
-        for (Trade t : trades) {
-            System.out.print(t + " ");
+        for (Asset a : assets) {
+            System.out.print(a + " ");
+        }
+        System.out.println();
+    }
+
+    public static void displayDetailedAssets(Asset[] assets, String title) {
+        System.out.println(title + ":");
+        for (Asset a : assets) {
+            System.out.print(a.toDetailedString() + " ");
         }
         System.out.println();
     }
@@ -131,83 +162,102 @@ class TradeVolumeAnalyzer {
 public class Week_3_4 {
 
     public static void main(String[] args) {
-        Trade[] trades = {
-                new Trade("trade3", 500),
-                new Trade("trade1", 100),
-                new Trade("trade2", 300)
+        Asset[] assets = {
+                new Asset("AAPL", 12, 0.25),
+                new Asset("TSLA", 8, 0.45),
+                new Asset("GOOG", 15, 0.18)
         };
 
-        System.out.println(" Original Trades ");
-        TradeVolumeAnalyzer.displayTrades(trades, "Original");
+        System.out.println(" Original Assets ");
+        PortfolioSorter.displayAssets(assets, "Original");
 
-        Trade[] mergeSorted = TradeVolumeAnalyzer.mergeSort(trades.clone());
-        System.out.println("\n Merge Sort by Volume Ascending (Stable) ");
-        TradeVolumeAnalyzer.displayTrades(mergeSorted, "MergeSort Result");
+        Asset[] mergeSorted = PortfolioSorter.mergeSortByReturnRate(assets.clone());
+        System.out.println("\n Merge Sort by Return Rate Ascending (Stable) ");
+        PortfolioSorter.displayAssets(mergeSorted, "MergeSort Result");
 
-        Trade[] quickSorted = trades.clone();
-        TradeVolumeAnalyzer.quickSortByVolumeDesc(quickSorted, 0, quickSorted.length - 1);
-        System.out.println("\n= Quick Sort by Volume Descending ");
-        TradeVolumeAnalyzer.displayTrades(quickSorted, "QuickSort Result");
+        Asset[] quickSorted = assets.clone();
+        PortfolioSorter.quickSortByReturnDescAndVolatilityAsc(quickSorted, 0, quickSorted.length - 1);
+        System.out.println("\n Quick Sort by Return Rate DESC + Volatility ASC ");
+        PortfolioSorter.displayDetailedAssets(quickSorted, "QuickSort Result");
 
-        Trade[] morningSession = {
-                new Trade("M1", 150),
-                new Trade("M2", 250),
-                new Trade("M3", 350)
+        System.out.println("\n Extended Test with 10 Assets ");
+        Asset[] extendedAssets = {
+                new Asset("AAPL", 12, 0.25),
+                new Asset("MSFT", 14, 0.20),
+                new Asset("TSLA", 8, 0.45),
+                new Asset("GOOG", 15, 0.18),
+                new Asset("AMZN", 13, 0.30),
+                new Asset("META", 11, 0.22),
+                new Asset("NFLX", 9, 0.35),
+                new Asset("NVDA", 16, 0.28),
+                new Asset("JPM", 7, 0.15),
+                new Asset("V", 10, 0.12)
         };
 
-        Trade[] afternoonSession = {
-                new Trade("A1", 100),
-                new Trade("A2", 200),
-                new Trade("A3", 400)
+        PortfolioSorter.displayDetailedAssets(extendedAssets, "Original Assets");
+
+        Asset[] extendedMergeSorted = PortfolioSorter.mergeSortByReturnRate(extendedAssets.clone());
+        System.out.println("\nMerge Sort Ascending by Return Rate:");
+        PortfolioSorter.displayAssets(extendedMergeSorted, "Result");
+
+        Asset[] extendedQuickSorted = extendedAssets.clone();
+        PortfolioSorter.quickSortByReturnDescAndVolatilityAsc(extendedQuickSorted, 0, extendedQuickSorted.length - 1);
+        System.out.println("\nQuick Sort DESC by Return + ASC by Volatility:");
+        PortfolioSorter.displayDetailedAssets(extendedQuickSorted, "Result");
+
+        System.out.println("\n Stability Test with Equal Return Rates ");
+        Asset[] stabilityTest = {
+                new Asset("StockA", 10, 0.30),
+                new Asset("StockB", 10, 0.25),
+                new Asset("StockC", 10, 0.35),
+                new Asset("StockD", 10, 0.20)
         };
 
-        System.out.println("\n Merging Morning and Afternoon Sessions ");
-        TradeVolumeAnalyzer.displayTrades(morningSession, "Morning Session");
-        TradeVolumeAnalyzer.displayTrades(afternoonSession, "Afternoon Session");
+        System.out.println("Before Merge Sort (all 10% return):");
+        for (Asset a : stabilityTest) {
+            System.out.print(a.getSymbol() + " ");
+        }
+        System.out.println();
 
-        Trade[] merged = TradeVolumeAnalyzer.mergeTwoSortedLists(morningSession, afternoonSession);
-        TradeVolumeAnalyzer.displayTrades(merged, "Merged Sorted Trades");
+        Asset[] stableSorted = PortfolioSorter.mergeSortByReturnRate(stabilityTest);
+        System.out.println("After Merge Sort (stable - original order preserved):");
+        for (Asset a : stableSorted) {
+            System.out.print(a.getSymbol() + " ");
+        }
+        System.out.println();
 
-        int totalVolume = TradeVolumeAnalyzer.computeTotalVolume(merged);
-        System.out.println("Total Volume: " + totalVolume);
-
-        System.out.println("\n Large Scale Test (10 Trades) ");
-        Trade[] largeTrades = {
-                new Trade("T1", 45), new Trade("T2", 23), new Trade("T3", 89),
-                new Trade("T4", 12), new Trade("T5", 67), new Trade("T6", 34),
-                new Trade("T7", 78), new Trade("T8", 56), new Trade("T9", 91),
-                new Trade("T10", 5)
+        System.out.println("\n Hybrid Quick Sort with Insertion for Small Partitions ");
+        Asset[] hybridTest = {
+                new Asset("X", 25, 0.22),
+                new Asset("Y", 18, 0.30),
+                new Asset("Z", 30, 0.18),
+                new Asset("W", 22, 0.25),
+                new Asset("V", 28, 0.20),
+                new Asset("U", 15, 0.35)
         };
 
-        TradeVolumeAnalyzer.displayTrades(largeTrades, "Original");
+        PortfolioSorter.displayDetailedAssets(hybridTest, "Before Hybrid Quick Sort");
+        PortfolioSorter.quickSortByReturnDescAndVolatilityAsc(hybridTest, 0, hybridTest.length - 1);
+        PortfolioSorter.displayDetailedAssets(hybridTest, "After Hybrid Quick Sort");
 
-        Trade[] largeMergeSorted = TradeVolumeAnalyzer.mergeSort(largeTrades.clone());
-        TradeVolumeAnalyzer.displayTrades(largeMergeSorted, "MergeSort Ascending");
-
-        Trade[] largeQuickSorted = largeTrades.clone();
-        TradeVolumeAnalyzer.quickSortByVolumeDesc(largeQuickSorted, 0, largeQuickSorted.length - 1);
-        TradeVolumeAnalyzer.displayTrades(largeQuickSorted, "QuickSort Descending");
-
-        int total = TradeVolumeAnalyzer.computeTotalVolume(largeQuickSorted);
-        System.out.println("Total Volume of All Trades: " + total);
-
-        Trade[] testList1 = {
-                new Trade("X1", 10),
-                new Trade("X2", 30),
-                new Trade("X3", 50)
+        System.out.println("\n Pivot Selection Strategy (Median-of-3) ");
+        Asset[] pivotTest = {
+                new Asset("P1", 5, 0.10),
+                new Asset("P2", 50, 0.50),
+                new Asset("P3", 25, 0.30)
         };
 
-        Trade[] testList2 = {
-                new Trade("Y1", 20),
-                new Trade("Y2", 40),
-                new Trade("Y3", 60)
-        };
+        System.out.println("Original:");
+        for (Asset a : pivotTest) {
+            System.out.print(a + " ");
+        }
+        System.out.println();
 
-        System.out.println("\n Merge Test with Equal Volumes ");
-        Trade[] mergedEqual = TradeVolumeAnalyzer.mergeTwoSortedLists(testList1, testList2);
-        TradeVolumeAnalyzer.displayTrades(mergedEqual, "Merged Result (Stable)");
-
-        int mergedTotal = TradeVolumeAnalyzer.computeTotalVolume(mergedEqual);
-        System.out.println("Merged Total Volume: " + mergedTotal);
+        PortfolioSorter.quickSortByReturnDescAndVolatilityAsc(pivotTest, 0, pivotTest.length - 1);
+        System.out.println("Sorted with Median-of-3 pivot:");
+        for (Asset a : pivotTest) {
+            System.out.print(a + " ");
+        }
+        System.out.println();
     }
 }
